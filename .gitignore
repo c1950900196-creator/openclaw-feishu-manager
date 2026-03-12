@@ -1,4 +1,9 @@
 node_modules/
 .env
 *.log
-.DS_Store
+bots/
+history.json
+user-names.json
+user-chats.json
+group-names.json
+voice-transcripts.json
