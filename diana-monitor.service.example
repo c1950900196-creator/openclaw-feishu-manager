@@ -1,0 +1,22 @@
+[Unit]
+Description=Diana Monitor Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/diana-monitor
+ExecStart=/usr/bin/node /home/ubuntu/diana-monitor/server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=DIANA_MONITOR_PORT=18790
+Environment=DIANA_MONITOR_ACCESS_TOKEN=__REPLACE_ME__
+Environment=DIANA_FEISHU_APP_ID=__REPLACE_ME__
+Environment=DIANA_FEISHU_APP_SECRET=__REPLACE_ME__
+Environment=DIANA_OPENCLAW_TOKEN=__REPLACE_ME__
+Environment=JAX_FEISHU_APP_ID=__REPLACE_ME__
+Environment=JAX_FEISHU_APP_SECRET=__REPLACE_ME__
+Environment=OPENAI_API_KEY=__REPLACE_ME__
+
+[Install]
+WantedBy=default.target

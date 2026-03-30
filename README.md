@@ -1,128 +1,131 @@
-# Diana — 带后台管理的生产力 OpenClaw 机器人
+# Diana Monitor
 
-## 项目概述
+Diana Monitor 是 OpenClaw 网关的可视化监控面板，面向 Diana/Jax 两个机器人，提供日志、任务、会话、Token 用量和定时任务管理能力。
 
-Diana 是一个基于 OpenClaw 构建的飞书智能助手，配备了自研的全功能后台管理系统 **Diana Monitor**。与常规 OpenClaw 部署不同，Diana 不只是一个"能聊天的机器人"，而是一套**可观测、可管控、可扩展**的 AI Agent 运维平台。
+## 当前版本重点
 
-管理者可以通过 Web 后台实时监控所有对话、追踪 Token 消耗和费用、审计定时任务执行情况、查看实时日志流，并在紧急情况下一键停止所有运行中的任务——真正做到了 AI Agent 从"能用"到"能管"的跨越。
+- 拆分完成：后端与前端均已模块化，核心文件都控制在 500 行以内
+- 鉴权加固：前端不再长期在 URL 里暴露 token，改为 `Authorization: Bearer`
+- 稳定性修复：修复非法 bot 参数导致的服务崩溃、session 日志半行截断等问题
+- 定时任务增强：
+  - 新增暂停/恢复接口：`POST /api/cron-toggle`
+  - 前端卡片支持一键暂停/恢复
+  - 已暂停任务也会保留展示（后端改为 `cron list --all`）
+- 历史任务状态修复：旧任务不再长期卡在“处理中”，超时会标记为“超时未收口”
 
-## 核心亮点
+## 目录结构
 
-### 1. 统一后台管理界面（Diana Monitor）
-
-一套纯前端 + Node.js 后端的轻量级管理系统（约 3000 行代码），提供五大功能模块：
-
-| 模块 | 功能 |
-|------|------|
-| **Chat** | 实时查看所有用户的私聊和群聊记录，消息气泡式界面，支持翻页加载历史 |
-| **Tasks** | 实时任务监控看板，展示每条指令的处理状态（处理中/完成/失败/限流） |
-| **Logs** | WebSocket 实时日志流 + 历史日志查询，按类型高亮着色（错误/消息/任务/启动） |
-| **Skills** | 技能包管理，查看详情和一键下载 |
-| **Tokens** | Token 用量与费用分析面板，按会话/日期分组，含定时任务消耗统计 |
-
-### 2. 多 Bot 统一管控
-
-支持将多台设备上的 OpenClaw 实例统一接入同一个管理后台：
-
-- **Bot 切换器**：顶部下拉菜单一键切换不同 Bot 的视图
-- **独立数据隔离**：每个 Bot 拥有独立的聊天记录、日志、Token 统计、飞书凭据
-- **跨设备数据同步**：远程 Bot 通过 rsync + macOS launchd 每 60 秒自动同步数据到管理服务器
-- **灵活的数据源**：本地 Bot 直接读取 OpenClaw CLI，远程 Bot 使用预生成的 JSON 文件
-
-### 3. 语音消息识别
-
-集成 OpenAI Whisper API 的语音转文字能力：
-
-- 自动检测飞书语音消息（audio/ogg 格式）
-- 通过 ffmpeg 转码 + Whisper API 完成转写
-- 转写结果同步显示在 Chat 和 Tokens 界面对应位置
-- 无需用户手动操作，Bot 收到语音即自动识别并回复
-
-### 4. 智能消息解析
-
-支持飞书全消息类型的解析和展示：
-
-- **文本消息**：完整展示，过滤系统标记（如 `[Replying to:...]`）
-- **富文本（post）**：提取标题和正文内容
-- **交互卡片**：解析卡片结构，提取标题、文本、图片等元素
-- **系统消息**、**图片**、**音频**：分类标记展示
-- **群聊消息**：显示发送者姓名，群组标签区分
-
-### 5. 精细化费用监控
-
-- 每条指令的 Token 消耗（输入/输出分别统计）和费用（美元）
-- 按日期分组汇总，展示每日 Token 总量和总费用
-- 定时任务（Cron Job）的独立消耗追踪：执行次数、累计 Token、累计费用
-- 悬浮提示框展示完整指令内容，支持长文本自适应
-
-### 6. 运维安全能力
-
-- **Stop All 紧急按钮**：一键终止所有活跃会话，防止 Agent 失控
-- **实时状态指示器**：WebSocket 连接状态实时显示（绿点/红点）
-- **访问控制**：基于 Token 的 API 鉴权
-- **日志审计**：完整的操作日志，支持按日期回溯
-
-## 技术架构
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   Diana Monitor                      │
-│  ┌──────────────┐  ┌──────────────────────────────┐  │
-│  │  index.html  │  │         server.js             │  │
-│  │  (前端 SPA)  │◄─┤  Node.js + WebSocket         │  │
-│  │  Dark 主题   │  │  多 Bot 配置管理              │  │
-│  │  响应式布局   │  │  飞书 API 代理               │  │
-│  └──────────────┘  │  日志实时流                   │  │
-│                    │  Token 统计缓存               │  │
-│                    │  语音识别调度                  │  │
-│                    └───────┬──────────────────────┘  │
-│                            │                         │
-│         ┌──────────────────┼──────────────────┐      │
-│         ▼                  ▼                  ▼      │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  │
-│  │ Diana (远程) │  │  Jax (本地)  │  │  更多 Bot  │  │
-│  │ OpenClaw    │  │  rsync 同步  │  │  可扩展    │  │
-│  │ 直连 CLI    │  │  launchd     │  │            │  │
-│  └─────────────┘  └──────────────┘  └────────────┘  │
-└─────────────────────────────────────────────────────┘
+```text
+.
+├── server.js
+├── index.html
+├── diana-monitor.service
+├── assets/
+│   ├── css/main.css
+│   └── js/
+│       ├── main-chat.js
+│       ├── main-runtime.js
+│       ├── main-skills.js
+│       └── tokens.js
+└── lib/
+    ├── config.js
+    ├── api-basic.js
+    ├── api-heavy.js
+    ├── feishu-service.js
+    ├── watchers.js
+    ├── ws.js
+    ├── parsers.js
+    ├── http-utils.js
+    ├── skills.js
+    └── cost-utils.js
 ```
 
-## 技术栈
+## 运行要求
 
-| 层次 | 技术 |
-|------|------|
-| 前端 | 原生 HTML/CSS/JS，单文件 SPA，Dark 主题，响应式设计 |
-| 后端 | Node.js 原生 HTTP + WebSocket（零框架依赖） |
-| 实时通信 | WebSocket 日志推送 + 飞书 API 消息拉取 |
-| 语音识别 | ffmpeg 音频转码 + OpenAI Whisper API |
-| 数据同步 | rsync over SSH，macOS launchd 定时调度 |
-| 缓存策略 | Stale-while-revalidate + Gzip 压缩 + 内存缓存预热 |
-| 部署 | 单进程 Node.js，无 Docker/K8s 依赖，开箱即用 |
+- Node.js 18+
+- OpenClaw CLI（diana 使用 CLI 拉取 cron/usage 数据）
+- systemd user service（线上推荐）
+- 服务模板：`diana-monitor.service.example`（无明文密钥）
 
-## 与普通 OpenClaw 部署的差异
+## 环境变量
 
-| 维度 | 普通部署 | Diana |
-|------|---------|-------|
-| 对话可见性 | 仅在飞书内查看 | Web 后台统一查看所有用户对话 |
-| 费用感知 | 需手动执行 CLI 查询 | 实时费用面板，按指令/日期/任务分组 |
-| 多 Bot 管理 | 每个 Bot 独立运维 | 统一后台切换查看 |
-| 异常处理 | 靠日志排查 | 实时日志流 + 任务状态监控 + 紧急停止 |
-| 语音支持 | 无法处理语音消息 | 自动语音转文字，无缝回复 |
-| 定时任务 | CLI 查看 | 可视化执行记录 + 消耗统计 |
+以下变量由 `lib/config.js` 强依赖，缺失会启动失败：
 
-## 实际应用场景
+- `DIANA_MONITOR_PORT`（默认 `18790`）
+- `DIANA_MONITOR_ACCESS_TOKEN`
+- `DIANA_FEISHU_APP_ID`
+- `DIANA_FEISHU_APP_SECRET`
+- `DIANA_OPENCLAW_TOKEN`
+- `JAX_FEISHU_APP_ID`
+- `JAX_FEISHU_APP_SECRET`
+- `OPENAI_API_KEY`（语音识别链路需要）
 
-Diana 目前部署在生产环境中，服务于以下场景：
+## 启动方式
 
-- **日常助理**：处理用户的各类查询请求（航班查询、信息检索等）
-- **定时任务**：每天自动生成并推送 AI 新闻摘要
-- **多人协作**：同时服务多个飞书群组和私聊用户
-- **语音交互**：支持用户通过语音消息与 Bot 对话
-- **跨设备协同**：本地开发机上的 Bot 与远程服务器统一管理
+### 方式 1：直接启动
 
-## 项目规模
+```bash
+node server.js
+```
 
-- 后端代码：~1,470 行（server.js）
-- 前端代码：~1,470 行（index.html，单文件 SPA）
-- 辅助脚本：语音识别脚本、数据同步脚本、定时任务配置
-- 零外部框架依赖（Node.js 原生 HTTP 模块）
+### 方式 2：systemd（推荐）
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart diana-monitor
+systemctl --user status diana-monitor
+```
+
+## 访问与鉴权
+
+- 页面：`GET /`（允许匿名访问 HTML 与静态资源）
+- API：需要 `Authorization: Bearer <token>`
+- WebSocket：`/ws?token=<token>&bot=<botId>`
+
+前端行为：
+
+- 首次支持从 URL 读取 `token`
+- 读取后会立即写入 `sessionStorage` 并从地址栏移除
+- 后续请求统一走 Header 鉴权
+
+## 主要 API
+
+### 基础 API（`lib/api-basic.js`）
+
+- `GET /api/bots`
+- `GET /api/history`
+- `GET /api/names`
+- `GET /api/chats`
+- `GET /api/group-names`
+- `GET /api/chat-messages`
+- `GET /api/logs`
+- `GET /api/log-dates`
+
+### 重型 API（`lib/api-heavy.js`）
+
+- `POST /api/stop-all`
+- `GET /api/skills`
+- `GET /api/skills/:id/download`
+- `GET /api/skills/:id/readme`
+- `GET /api/cron-usage`
+- `POST /api/cron-toggle?jobId=<id>&enabled=0|1`
+- `GET /api/token-usage`
+
+## 定时任务按钮说明
+
+- 运行中任务显示“暂停”
+- 已停止任务显示“恢复”
+- 按钮与任务头部同一行展示，不再单独占一行
+- 操作后会自动刷新列表
+
+## 运维建议
+
+- 不要把真实密钥直接提交到仓库，建议改为 `EnvironmentFile`
+- 若发现“旧任务处理中”异常，先强刷页面再检查 `history.json` 与当日日志
+- 线上排障优先看：
+  - `journalctl --user -u diana-monitor -f`
+  - `/api/health` 与 `/api/cron-usage` 返回
+
+## 相关文档
+
+- `docs/运维与发布说明.md`
