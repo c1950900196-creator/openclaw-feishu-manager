@@ -241,3 +241,9 @@ curl -s -H "Authorization: Bearer <token>" -X POST "http://localhost:18790/api/c
 
 - `docs/运维与发布说明.md`
 - `diana-monitor.service.example`
+
+---
+
+## 支持项目
+
+如果这个项目对你有帮助，欢迎点一个 Star ⭐，这会帮助更多需要 OpenClaw + Feishu 监控方案的人找到它。
